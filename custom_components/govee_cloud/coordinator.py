@@ -108,11 +108,31 @@ class GoveeDeviceState:
                     return (int(r["min"]), int(r["max"]))
         return None
 
+    def state_summary(self) -> str:
+        """Return a compact state string for logging."""
+        on_str = {True: "ON", False: "OFF", None: "?"}[self.on]
+        parts = [on_str]
+        if self.brightness is not None:
+            parts.append(f"bri={self.brightness}")
+        if self.color_temp_kelvin is not None:
+            parts.append(f"ct={self.color_temp_kelvin}K")
+        elif self.color_rgb is not None:
+            parts.append(f"rgb=#{self.color_rgb:06X}")
+        if self.is_optimistic:
+            parts.append("(optimistic)")
+        return " ".join(parts)
+
     def apply_optimistic(self, **kwargs: Any) -> None:
         """Apply optimistic state after sending a command."""
         self._optimistic_until = time.monotonic() + OPTIMISTIC_SECONDS
         for key, value in kwargs.items():
             setattr(self, key, value)
+        _LOGGER.debug(
+            "Optimistic state applied for %s: %s (held for %ds)",
+            self.name,
+            self.state_summary(),
+            OPTIMISTIC_SECONDS,
+        )
 
     def update_from_api(self, capabilities: list[dict]) -> bool:
         """Update state from API response. Returns True if state changed."""
@@ -265,6 +285,7 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
             return False
 
         try:
+            before = device.state_summary()
             payload = await self._api.get_device_state(device.sku, device.device_id)
             capabilities = payload.get("capabilities", [])
             changed = device.update_from_api(capabilities)
@@ -272,6 +293,13 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
             if not device.online:
                 device.online = True
                 changed = True
+            if changed:
+                _LOGGER.info(
+                    "State changed for %s: %s → %s",
+                    device.name,
+                    before,
+                    device.state_summary(),
+                )
             return changed
         except GoveeRateLimitError:
             _LOGGER.debug("Rate limited while polling %s", device.name)
@@ -298,12 +326,22 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
             )
             return
 
+        t0 = time.monotonic()
         results = await asyncio.gather(
             *[self._poll_device(d) for d in self.devices.values()],
             return_exceptions=True,
         )
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        changed_count = sum(1 for r in results if r is True)
+        _LOGGER.debug(
+            "Poll cycle complete: %d devices, %d changed, %.0fms elapsed, %d rate-limit remaining",
+            len(self.devices),
+            changed_count,
+            elapsed_ms,
+            self._api.rate_limit_remaining,
+        )
 
-        if any(r is True for r in results):
+        if changed_count:
             self.async_set_updated_data(self.devices)
 
     async def _async_update_data(self) -> dict[str, GoveeDeviceState]:
@@ -321,6 +359,13 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
     ) -> None:
         """Send a command with debouncing and optimistic state."""
         self._last_command_time = time.monotonic()
+        _LOGGER.info(
+            "Command queued: %s → %s=%s (current state: %s)",
+            device.name,
+            instance,
+            value,
+            device.state_summary(),
+        )
 
         # Apply optimistic state immediately
         if optimistic_state:
@@ -352,14 +397,27 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
     ) -> None:
         """Execute a command against the API."""
         self._debounce_timers.pop(debounce_key, None)
+        t0 = time.monotonic()
         try:
             await self._api.control_device(
                 device.sku, device.device_id, capability_type, instance, value
             )
-            _LOGGER.debug(
-                "Command OK: %s → %s=%s", device.name, instance, value
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            _LOGGER.info(
+                "Command OK: %s → %s=%s (%.0fms, optimistic until +%ds)",
+                device.name,
+                instance,
+                value,
+                elapsed_ms,
+                max(0, device._optimistic_until - time.monotonic()),
             )
         except GoveeApiError as err:
+            elapsed_ms = (time.monotonic() - t0) * 1000
             _LOGGER.error(
-                "Command FAILED: %s → %s=%s: %s", device.name, instance, value, err
+                "Command FAILED: %s → %s=%s: %s (%.0fms)",
+                device.name,
+                instance,
+                value,
+                err,
+                elapsed_ms,
             )
