@@ -97,6 +97,16 @@ class GoveeDeviceState:
     def supports_color_temp(self) -> bool:
         return self.has_capability(CAP_COLOR_SETTING, INST_COLOR_TEMP)
 
+    @property
+    def color_temp_range(self) -> tuple[int, int] | None:
+        """Return (min_kelvin, max_kelvin) from device capabilities, or None if unavailable."""
+        for cap in self.capabilities:
+            if cap.get("type") == CAP_COLOR_SETTING and cap.get("instance") == INST_COLOR_TEMP:
+                r = cap.get("parameters", {}).get("range", {})
+                if "min" in r and "max" in r:
+                    return (int(r["min"]), int(r["max"]))
+        return None
+
     def apply_optimistic(self, **kwargs: Any) -> None:
         """Apply optimistic state after sending a command."""
         self._optimistic_until = time.monotonic() + 5

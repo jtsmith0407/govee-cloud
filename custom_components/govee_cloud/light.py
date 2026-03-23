@@ -77,8 +77,13 @@ class GoveeCloudLight(CoordinatorEntity, LightEntity):
             modes.add(ColorMode.ONOFF)
 
         self._attr_supported_color_modes = modes
-        self._attr_min_color_temp_kelvin = MIN_COLOR_TEMP_KELVIN
-        self._attr_max_color_temp_kelvin = MAX_COLOR_TEMP_KELVIN
+
+        # Use per-device range from capabilities; fall back to global defaults.
+        # This prevents out-of-range errors for devices like H6004 whose minimum
+        # is higher than the global MIN_COLOR_TEMP_KELVIN (e.g. 2700K vs 2000K).
+        temp_range = device.color_temp_range
+        self._attr_min_color_temp_kelvin = temp_range[0] if temp_range else MIN_COLOR_TEMP_KELVIN
+        self._attr_max_color_temp_kelvin = temp_range[1] if temp_range else MAX_COLOR_TEMP_KELVIN
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -173,7 +178,7 @@ class GoveeCloudLight(CoordinatorEntity, LightEntity):
             )
 
         if ATTR_COLOR_TEMP_KELVIN in kwargs:
-            kelvin = kwargs[ATTR_COLOR_TEMP_KELVIN]
+            kelvin = max(self.min_color_temp_kelvin, min(self.max_color_temp_kelvin, kwargs[ATTR_COLOR_TEMP_KELVIN]))
             coordinator.send_command(
                 self._device,
                 CAP_COLOR_SETTING,
