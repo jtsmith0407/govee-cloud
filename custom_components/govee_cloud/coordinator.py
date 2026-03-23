@@ -192,11 +192,17 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
         return self._base_interval
 
     async def async_start(self) -> None:
-        """Start by fetching devices and beginning the poll loop."""
+        """Start by fetching devices, then poll state in the background.
+
+        We deliberately do not await the initial state poll here — the Govee API
+        takes several seconds per batch even with concurrency, and blocking HA
+        startup for that long delays all other integrations.  Entities will come
+        up with is_on=None (unknown) for one poll cycle (~3-15 s) and then
+        populate normally.
+        """
         await self._fetch_devices()
-        # Do an initial state poll so entities have data before HA renders them
-        await self._poll_all_devices()
         self._running = True
+        # Poll loop does an immediate first fetch before entering its sleep cycle
         self._poll_task = self.hass.async_create_background_task(
             self._adaptive_poll_loop(), "govee_cloud_poll"
         )
@@ -224,11 +230,17 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
                 )
 
     async def _adaptive_poll_loop(self) -> None:
-        """Poll devices with adaptive intervals based on activity."""
+        """Poll devices with adaptive intervals based on activity.
+
+        Polls immediately on first run so entities populate state quickly after
+        setup, then sleeps between subsequent cycles.
+        """
+        first = True
         while self._running:
             try:
-                interval = self._current_interval
-                await asyncio.sleep(interval)
+                if not first:
+                    await asyncio.sleep(self._current_interval)
+                first = False
                 await self._poll_all_devices()
             except asyncio.CancelledError:
                 break
