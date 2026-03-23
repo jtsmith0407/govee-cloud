@@ -8,9 +8,10 @@ import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import GoveeApiClient
+from .api import GoveeApiClient, GoveeApiError
 from .const import CONF_API_KEY, CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL, DOMAIN
 from .coordinator import GoveeCloudCoordinator
 
@@ -27,7 +28,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     api = GoveeApiClient(session, api_key)
     coordinator = GoveeCloudCoordinator(hass, api, poll_interval)
-    await coordinator.async_start()
+    try:
+        await coordinator.async_start()
+    except GoveeApiError as err:
+        raise ConfigEntryNotReady(
+            f"Could not connect to Govee API: {err}"
+        ) from err
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator

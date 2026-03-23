@@ -202,20 +202,17 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
         self._debounce_timers.clear()
 
     async def _fetch_devices(self) -> None:
-        """Fetch the device list from the API."""
-        try:
-            device_list = await self._api.get_devices()
-            for dev_data in device_list:
-                device_id = dev_data.get("device", "")
-                if device_id not in self.devices:
-                    self.devices[device_id] = GoveeDeviceState(dev_data)
-                    _LOGGER.info(
-                        "Found Govee device: %s (%s)",
-                        dev_data.get("deviceName", "Unknown"),
-                        dev_data.get("sku", "Unknown"),
-                    )
-        except GoveeApiError as err:
-            _LOGGER.error("Failed to fetch devices: %s", err)
+        """Fetch the device list from the API. Raises on failure."""
+        device_list = await self._api.get_devices()
+        for dev_data in device_list:
+            device_id = dev_data.get("device", "")
+            if device_id not in self.devices:
+                self.devices[device_id] = GoveeDeviceState(dev_data)
+                _LOGGER.info(
+                    "Found Govee device: %s (%s)",
+                    dev_data.get("deviceName", "Unknown"),
+                    dev_data.get("sku", "Unknown"),
+                )
 
     async def _adaptive_poll_loop(self) -> None:
         """Poll devices with adaptive intervals based on activity."""

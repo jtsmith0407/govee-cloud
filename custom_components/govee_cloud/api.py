@@ -92,7 +92,7 @@ class GoveeApiClient:
 
         try:
             async with self._session.request(
-                method, url, headers=self._headers, json=json_data, timeout=aiohttp.ClientTimeout(total=10)
+                method, url, headers=self._headers, json=json_data, timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
                 self._update_rate_limits(resp.headers)
                 self._request_count += 1
@@ -109,6 +109,8 @@ class GoveeApiClient:
                     )
 
                 return await resp.json()
+        except TimeoutError as err:
+            raise GoveeApiError(f"Request timed out: {url}") from err
         except aiohttp.ClientError as err:
             raise GoveeApiError(f"Connection error: {err}") from err
 
