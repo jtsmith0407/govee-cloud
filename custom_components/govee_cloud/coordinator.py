@@ -229,61 +229,58 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
             try:
                 interval = self._current_interval
                 await asyncio.sleep(interval)
-
-                if not self._api.budget_available:
-                    _LOGGER.debug(
-                        "Rate budget low (%d remaining), skipping poll cycle",
-                        self._api.rate_limit_remaining,
-                    )
-                    await asyncio.sleep(60)
-                    continue
-
                 await self._poll_all_devices()
-
             except asyncio.CancelledError:
                 break
             except Exception:
                 _LOGGER.exception("Error in poll loop")
                 await asyncio.sleep(30)
 
-    async def _poll_all_devices(self) -> None:
-        """Poll state for all devices."""
-        any_changed = False
-        for device in list(self.devices.values()):
-            if device.is_optimistic:
-                continue  # Skip devices with pending optimistic state
+    async def _poll_device(self, device: GoveeDeviceState) -> bool:
+        """Poll a single device. Returns True if state changed."""
+        if device.is_optimistic:
+            return False
 
-            try:
-                payload = await self._api.get_device_state(
-                    device.sku, device.device_id
+        try:
+            payload = await self._api.get_device_state(device.sku, device.device_id)
+            capabilities = payload.get("capabilities", [])
+            changed = device.update_from_api(capabilities)
+            device.consecutive_failures = 0
+            if not device.online:
+                device.online = True
+                changed = True
+            return changed
+        except GoveeRateLimitError:
+            _LOGGER.debug("Rate limited while polling %s", device.name)
+            return False
+        except GoveeApiError as err:
+            device.consecutive_failures = getattr(device, "consecutive_failures", 0) + 1
+            if device.consecutive_failures >= 3 and device.online:
+                device.online = False
+                _LOGGER.warning(
+                    "Marking %s offline after %d consecutive failures",
+                    device.name,
+                    device.consecutive_failures,
                 )
-                capabilities = payload.get("capabilities", [])
-                if device.update_from_api(capabilities):
-                    any_changed = True
-                # Reset failure count on success
-                device.consecutive_failures = 0
-                if not device.online:
-                    device.online = True
-                    any_changed = True
-            except GoveeRateLimitError:
-                _LOGGER.debug("Rate limited during poll, stopping cycle")
-                break
-            except GoveeApiError as err:
-                device.consecutive_failures = getattr(
-                    device, "consecutive_failures", 0
-                ) + 1
-                if device.consecutive_failures >= 3 and device.online:
-                    device.online = False
-                    any_changed = True
-                    _LOGGER.warning(
-                        "Marking %s offline after %d consecutive failures",
-                        device.name,
-                        device.consecutive_failures,
-                    )
-                else:
-                    _LOGGER.debug("Failed to poll %s: %s", device.name, err)
+                return True
+            _LOGGER.debug("Failed to poll %s: %s", device.name, err)
+            return False
 
-        if any_changed:
+    async def _poll_all_devices(self) -> None:
+        """Poll state for all devices concurrently."""
+        if not self._api.budget_available:
+            _LOGGER.debug(
+                "Rate budget low (%d remaining), skipping poll cycle",
+                self._api.rate_limit_remaining,
+            )
+            return
+
+        results = await asyncio.gather(
+            *[self._poll_device(d) for d in self.devices.values()],
+            return_exceptions=True,
+        )
+
+        if any(r is True for r in results):
             self.async_set_updated_data(self.devices)
 
     async def _async_update_data(self) -> dict[str, GoveeDeviceState]:

@@ -121,7 +121,13 @@ class GoveeCloudLight(CoordinatorEntity, LightEntity):
             return ColorMode.COLOR_TEMP
         if ColorMode.RGB in modes and self._device.color_rgb is not None:
             return ColorMode.RGB
-        # No color data available yet — fall back to a mode that has no required attribute
+        # State not yet known — prefer COLOR_TEMP over RGB since color_temp_kelvin=None is
+        # valid but rgb_color=None triggers an HA warning. Only fall back to RGB if the
+        # device has no COLOR_TEMP capability at all.
+        if ColorMode.COLOR_TEMP in modes:
+            return ColorMode.COLOR_TEMP
+        if ColorMode.RGB in modes:
+            return ColorMode.RGB
         if ColorMode.BRIGHTNESS in modes:
             return ColorMode.BRIGHTNESS
         if ColorMode.COLOR_TEMP in modes:
