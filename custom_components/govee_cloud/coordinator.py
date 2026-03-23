@@ -124,8 +124,17 @@ class GoveeDeviceState:
                     self.brightness = value
                     changed = True
             elif instance == INST_COLOR_RGB:
-                if self.color_rgb != value:
-                    self.color_rgb = value
+                # Govee v2 API returns color as {"r": int, "g": int, "b": int}
+                if isinstance(value, dict):
+                    packed = (
+                        (value.get("r", 0) << 16)
+                        | (value.get("g", 0) << 8)
+                        | value.get("b", 0)
+                    )
+                else:
+                    packed = value
+                if self.color_rgb != packed:
+                    self.color_rgb = packed
                     self.color_temp_kelvin = None
                     changed = True
             elif instance == INST_COLOR_TEMP:

@@ -119,12 +119,13 @@ class GoveeCloudLight(CoordinatorEntity, LightEntity):
         modes = self._attr_supported_color_modes
         if ColorMode.COLOR_TEMP in modes and self._device.color_temp_kelvin is not None:
             return ColorMode.COLOR_TEMP
-        if ColorMode.RGB in modes and (self._device.color_rgb is not None or self._device.color_temp_kelvin is None):
+        if ColorMode.RGB in modes and self._device.color_rgb is not None:
             return ColorMode.RGB
-        if ColorMode.COLOR_TEMP in modes:
-            return ColorMode.COLOR_TEMP
+        # No color data available yet — fall back to a mode that has no required attribute
         if ColorMode.BRIGHTNESS in modes:
             return ColorMode.BRIGHTNESS
+        if ColorMode.COLOR_TEMP in modes:
+            return ColorMode.COLOR_TEMP
         return ColorMode.ONOFF
 
     async def async_turn_on(self, **kwargs: Any) -> None:
