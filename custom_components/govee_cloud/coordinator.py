@@ -296,12 +296,14 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
                 device.online = True
                 changed = True
             if changed:
-                _LOGGER.info(
-                    "State changed for %s: %s → %s",
-                    device.name,
-                    before,
-                    device.state_summary(),
-                )
+                after = device.state_summary()
+                if before != after:
+                    _LOGGER.info(
+                        "State changed for %s: %s → %s",
+                        device.name,
+                        before,
+                        after,
+                    )
             return changed
         except GoveeRateLimitError:
             _LOGGER.debug("Rate limited while polling %s", device.name)
