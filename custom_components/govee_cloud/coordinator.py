@@ -112,6 +112,8 @@ class GoveeDeviceState:
         """Return a compact state string for logging."""
         on_str = {True: "ON", False: "OFF", None: "?"}[self.on]
         parts = [on_str]
+        if not self.online:
+            parts.append("(offline)")
         if self.brightness is not None:
             parts.append(f"bri={self.brightness}")
         if self.color_temp_kelvin is not None:
@@ -403,6 +405,11 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
                 device.sku, device.device_id, capability_type, instance, value
             )
             elapsed_ms = (time.monotonic() - t0) * 1000
+            # Re-anchor the optimistic window to now so a slow API response
+            # doesn't cause the poll to flip the state back before the device
+            # has had time to physically respond.
+            if device.is_optimistic or elapsed_ms > 1000:
+                device._optimistic_until = time.monotonic() + OPTIMISTIC_SECONDS
             _LOGGER.info(
                 "Command OK: %s → %s=%s (%.0fms, optimistic until +%ds)",
                 device.name,
