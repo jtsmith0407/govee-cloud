@@ -149,9 +149,14 @@ class GoveeApiClient:
                 },
             },
         }
-        await self._request(
+        result = await self._request(
             "POST", API_CONTROL_URL, json_data=payload, is_control=True
         )
+        # Govee API occasionally returns HTTP 200 with an error code in the body.
+        code = result.get("code") if isinstance(result, dict) else None
+        if code is not None and code != 200:
+            msg = result.get("msg") or result.get("message") or "unknown error"
+            raise GoveeApiError(f"API rejected command (code {code}): {msg}")
         return True
 
     async def validate_key(self) -> bool:

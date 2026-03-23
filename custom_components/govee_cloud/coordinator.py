@@ -345,5 +345,10 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
             await self._api.control_device(
                 device.sku, device.device_id, capability_type, instance, value
             )
+            _LOGGER.debug(
+                "Command OK: %s → %s=%s", device.name, instance, value
+            )
         except GoveeApiError as err:
-            _LOGGER.error("Command failed for %s: %s", device.name, err)
+            _LOGGER.error(
+                "Command FAILED: %s → %s=%s: %s", device.name, instance, value, err
+            )
