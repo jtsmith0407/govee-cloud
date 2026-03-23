@@ -8,13 +8,21 @@
           "api_key": "API Key",
           "poll_interval": "Base polling interval (seconds)"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Govee Cloud",
+        "description": "Enter a new Govee API key to reauthenticate.",
+        "data": {
+          "api_key": "API Key"
+        }
       }
     },
     "error": {
       "invalid_auth": "Invalid API key. Please check and try again."
     },
     "abort": {
-      "already_configured": "This Govee account is already configured."
+      "already_configured": "This Govee account is already configured.",
+      "reconfigure_successful": "Reauthentication successful."
     }
   },
   "options": {

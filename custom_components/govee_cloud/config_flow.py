@@ -29,7 +29,6 @@ class GoveeCloudConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             api_key = user_input[CONF_API_KEY].strip()
 
-            # Validate the API key
             async with aiohttp.ClientSession() as session:
                 client = GoveeApiClient(session, api_key)
                 valid = await client.validate_key()
@@ -63,17 +62,45 @@ class GoveeCloudConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle reconfiguration — update API key."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            api_key = user_input[CONF_API_KEY].strip()
+
+            async with aiohttp.ClientSession() as session:
+                client = GoveeApiClient(session, api_key)
+                valid = await client.validate_key()
+
+            if valid:
+                return self.async_update_reload_and_abort(
+                    self._get_reconfigure_entry(),
+                    data={CONF_API_KEY: api_key},
+                )
+            else:
+                errors["base"] = "invalid_auth"
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_API_KEY): str,
+                }
+            ),
+            errors=errors,
+        )
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> GoveeCloudOptionsFlow:
-        return GoveeCloudOptionsFlow(config_entry)
+        return GoveeCloudOptionsFlow()
 
 
 class GoveeCloudOptionsFlow(OptionsFlow):
     """Handle options flow for Govee Cloud Control."""
-
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
