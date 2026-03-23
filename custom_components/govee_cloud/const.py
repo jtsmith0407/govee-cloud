@@ -40,6 +40,13 @@ MAX_COLOR_TEMP_KELVIN = 9000
 # Debounce
 COMMAND_DEBOUNCE_SECONDS = 0.3
 
+# Optimistic state window: how long to hold the assumed state after a command
+# before letting a poll overwrite it.  Cloud devices can take 5-10+ seconds to
+# physically respond after the API accepts the command, so this must be longer
+# than ACTIVE_POLL_INTERVAL to prevent the entity from flipping back to the old
+# state while the device is still processing the command.
+OPTIMISTIC_SECONDS = 12
+
 # Config keys
 CONF_API_KEY = "api_key"
 CONF_POLL_INTERVAL = "poll_interval"

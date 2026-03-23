@@ -26,6 +26,7 @@ from .const import (
     INST_COLOR_RGB,
     INST_COLOR_TEMP,
     INST_POWER,
+    OPTIMISTIC_SECONDS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -109,7 +110,7 @@ class GoveeDeviceState:
 
     def apply_optimistic(self, **kwargs: Any) -> None:
         """Apply optimistic state after sending a command."""
-        self._optimistic_until = time.monotonic() + 5
+        self._optimistic_until = time.monotonic() + OPTIMISTIC_SECONDS
         for key, value in kwargs.items():
             setattr(self, key, value)
 
