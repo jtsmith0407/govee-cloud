@@ -116,11 +116,14 @@ class GoveeCloudLight(CoordinatorEntity, LightEntity):
 
     @property
     def color_mode(self) -> ColorMode | None:
-        if self._device.color_temp_kelvin is not None:
+        modes = self._attr_supported_color_modes
+        if ColorMode.COLOR_TEMP in modes and self._device.color_temp_kelvin is not None:
             return ColorMode.COLOR_TEMP
-        if self._device.color_rgb is not None:
+        if ColorMode.RGB in modes and (self._device.color_rgb is not None or self._device.color_temp_kelvin is None):
             return ColorMode.RGB
-        if self._device.brightness is not None:
+        if ColorMode.COLOR_TEMP in modes:
+            return ColorMode.COLOR_TEMP
+        if ColorMode.BRIGHTNESS in modes:
             return ColorMode.BRIGHTNESS
         return ColorMode.ONOFF
 
