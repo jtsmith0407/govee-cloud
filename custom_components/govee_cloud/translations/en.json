@@ -1,0 +1,29 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Govee Cloud Control",
+        "description": "Enter your Govee API key. You can get one from the Govee Home app: Account > Settings > About Us > Apply for API Key.",
+        "data": {
+          "api_key": "API Key",
+          "poll_interval": "Base polling interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid API key. Please check and try again."
+    },
+    "abort": {
+      "already_configured": "This Govee account is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "poll_interval": "Base polling interval (seconds)"
+        }
+      }
+    }
+  }
+}

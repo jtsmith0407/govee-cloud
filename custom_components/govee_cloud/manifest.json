@@ -1,0 +1,11 @@
+{
+  "domain": "govee_cloud",
+  "name": "Govee Cloud Control",
+  "codeowners": ["@jtsmith0407"],
+  "config_flow": true,
+  "documentation": "https://github.com/jtsmith0407/govee-cloud",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "version": "1.0.0",
+  "requirements": ["aiohttp>=3.8.0"]
+}
