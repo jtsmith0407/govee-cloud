@@ -137,17 +137,33 @@ class GoveeDeviceState:
         )
 
     def update_from_api(self, capabilities: list[dict]) -> bool:
-        """Update state from API response. Returns True if state changed."""
-        if self.is_optimistic:
-            return False  # Don't overwrite optimistic state
-
+        """Update connectivity first; offline capability values are historical."""
         changed = False
+        for cap in capabilities:
+            if cap.get("instance") != "online":
+                continue
+            state = cap.get("state")
+            value = state.get("value") if isinstance(state, dict) else None
+            if isinstance(value, bool) and self.online != value:
+                self.online = value
+                changed = True
+
+        if not self.online or self.is_optimistic:
+            return changed
+
         for cap in capabilities:
             cap_type = cap.get("type", "")
             instance = cap.get("instance", "")
-            value = cap.get("value")
+            state = cap.get("state")
+            if not isinstance(state, dict):
+                continue
+            value = state.get("value")
+            if value is None or value == "":
+                continue
 
             if instance == INST_POWER:
+                if not isinstance(value, (bool, int)) or value not in (0, 1):
+                    continue
                 new_on = value == 1
                 if self.on != new_on:
                     self.on = new_on
@@ -175,12 +191,6 @@ class GoveeDeviceState:
                     self.color_temp_kelvin = value
                     self.color_rgb = None
                     changed = True
-            elif instance == "online":
-                new_online = bool(value)
-                if self.online != new_online:
-                    self.online = new_online
-                    changed = True
-
         return changed
 
 
@@ -292,9 +302,6 @@ class GoveeCloudCoordinator(DataUpdateCoordinator):
             capabilities = payload.get("capabilities", [])
             changed = device.update_from_api(capabilities)
             device.consecutive_failures = 0
-            if not device.online:
-                device.online = True
-                changed = True
             if changed:
                 after = device.state_summary()
                 if before != after:
